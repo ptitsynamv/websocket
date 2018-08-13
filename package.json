@@ -1,0 +1,35 @@
+{
+  "name": "websocket-masha",
+  "version": "1.0.0",
+  "description": "test project",
+  "main": "app.js",
+  "scripts": {
+    "start": "node index",
+    "server": "nodemon index"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ptitsynamasha/websocket.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ptitsynamasha/websocket/issues"
+  },
+  "homepage": "https://github.com/ptitsynamasha/websocket#readme",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.18.3",
+    "express": "^4.16.3",
+    "jsonwebtoken": "^8.3.0",
+    "mongodb": "^3.1.1",
+    "mongoose": "^5.2.2",
+    "passport": "^0.4.0",
+    "passport-jwt": "^4.0.0",
+    "websocket": "^1.0.26",
+    "ws": "^6.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^1.18.1"
+  }
+}

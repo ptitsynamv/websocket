@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<form id="loginform" class="unauthorized">
+    <input id="login" placeholder="Логин"><br>
+    <input id="password" placeholder="Пароль">
+    <div>* Если аккаунт не существует, то будет создан</div>
+</form>
+<output id="messages"></output>
+<div>
+    <div contenteditable id="input"></div>
+</div>
+<script>
+    var ws = new WebSocket('ws://localhost:9400');
+    ws.onopen = function () {
+        console.log('websocket is connected ...');
+        //ws.send('connected')
+    };
+
+    ws.onmessage = function (message) {
+        var event = JSON.parse(message.data);
+
+
+        switch (event.type) {
+            case 'message':
+                // рендерим само сообщение
+
+                var name = document.createElement('div');
+                var icon = document.createElement('div');
+                var body = document.createElement('div');
+                var root = document.createElement('div');
+
+                name.innerText = event.from;
+                body.innerText = specials_in(event);
+
+                root.appendChild(name);
+                root.appendChild(icon);
+                root.appendChild(body);
+
+                $('messages').appendChild (root);
+
+                break;
+            case 'authorize':
+                if (event.success) {
+                    $('loginform').classList.remove('unauthorized');
+                }
+                break;
+            default:
+                console.log ('unknown event:', event);
+                break;
+        }
+    }
+
+
+
+    function specials_in (event) {
+        var message = event.message;
+        var moment = new Date(event.time);
+
+        // получаем время в пригодном виде
+        var time = (moment.getHours()<10)? '0'+moment.getHours() : moment.getHours();
+        time = (moment.getMinutes()<10)? time+':0'+moment.getMinutes() : time+':'+moment.getMinutes();
+        time = (moment.getSeconds()<10)? time+':0'+moment.getSeconds() : time+':'+moment.getSeconds();
+        var date = (moment.getDate()<10)? '0'+moment.getDate() : moment.getDate();
+        date = (moment.getMonth()<10)? date+'.0'+moment.getMinutes()+'.'+moment.getFullYear() : date+':'+moment.getMonth()+'.'+moment.getFullYear()
+
+
+        message = message.replace(/\[time\]/gim, time);
+        message = message.replace(/\[date\]/gim, date);
+
+        return message;
+    }
+
+    function specials_out(message) {
+        //message = message.replace(/\s*\/me\s/, $('#login').value+' ');
+        //TODO сделай нормально
+        return 'masha';
+    }
+
+
+    $('#password').on('keydown', function (e) {
+        console.log('password onkeydown');
+        if (e.which === 13) {
+            // отправляем серверу событие authorize
+            ws.send (JSON.stringify ({
+                type: 'authorize',
+                user: $('#login').value,
+                password: $('#password').value
+            }));
+        }
+    });
+
+    $('input').on('keydown', function (e) {
+        // если человек нажал Ctrl+Enter или Shift+Enter, то просто создаем новую строку.
+        if (e.which === 13 && !e.ctrlKey && !e.shiftKey) {
+            // отправляем серверу событие message
+            ws.send (JSON.stringify ({
+                type: 'message',
+                message: specials_out($('input').innerText)
+            }));
+            $('input').innerText = ''; // чистим поле ввода
+        }
+    });
+
+</script>
+
+</body>
+</html>
