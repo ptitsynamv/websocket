@@ -12,7 +12,12 @@ module.exports.login = async function (req, res) {
 
             const token = createToken(candidate.email, candidate._id);
             res.status(200).json({
-                token: `Bearer ${token}`
+                token: `Bearer ${token}`,
+                email: candidate.email,
+                isAdmin: candidate.isAdmin,
+                isBan: candidate.isBan,
+                isMute: candidate.isMute,
+                color: candidate.color,
             })
         } else {
             res.status(401).json({

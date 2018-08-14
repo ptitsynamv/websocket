@@ -1,113 +1,179 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-    <meta charset="UTF-8">
-    <title>Title</title>
+    <meta charset="utf-8">
+    <title>WebSockets - Simple chat</title>
+
+    <style>
+        * {
+            font-family: tahoma;
+            font-size: 12px;
+            padding: 0px;
+            margin: 0px;
+        }
+
+        p {
+            line-height: 18px;
+        }
+
+        div {
+            width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        #content {
+            padding: 5px;
+            background: #ddd;
+            border-radius: 5px;
+            overflow-y: scroll;
+            border: 1px solid #CCC;
+            margin-top: 10px;
+            height: 160px;
+        }
+
+        #input {
+            border-radius: 2px;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+            padding: 5px;
+            width: 400px;
+        }
+
+        #status {
+            width: 88px;
+            display: block;
+            float: left;
+            margin-top: 15px;
+        }
+    </style>
 </head>
 <body>
-<form id="loginform" class="unauthorized">
-    <input id="login" placeholder="Логин"><br>
-    <input id="password" placeholder="Пароль">
-    <div>* Если аккаунт не существует, то будет создан</div>
-</form>
-<output id="messages"></output>
+<div id="content"></div>
 <div>
-    <div contenteditable id="input"></div>
+    <span id="status">Connecting...</span>
+    <input type="text" id="input" disabled="disabled"/>
 </div>
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
 <script>
-    var ws = new WebSocket('ws://localhost:9400');
-    ws.onopen = function () {
-        console.log('websocket is connected ...');
-        //ws.send('connected')
+    var content = $('#content');
+    var input = $('#input');
+    var status = $('#status');
+
+    // my color assigned by the server
+    var myColor = false;
+    // my name sent to the server
+    var myName = false;
+
+    // if user is running mozilla then use it's built-in WebSocket
+    window.WebSocket = window.WebSocket || window.MozWebSocket;
+
+    // if browser doesn't support WebSocket, just show some notification and exit
+    if (!window.WebSocket) {
+        content.html($('<p>', {
+            text: 'Sorry, but your browser doesn\'t '
+                + 'support WebSockets.'
+        }));
+        input.hide();
+        $('span').hide();
+    }
+
+    // open connection
+    var connection = new WebSocket('ws://127.0.0.1:3000');
+
+    connection.onopen = function () {
+        // first we want users to enter their names
+        input.removeAttr('disabled');
+        $('#status').text('Choose name:');
     };
 
-    ws.onmessage = function (message) {
-        var event = JSON.parse(message.data);
+    connection.onerror = function (error) {
+        // just in there were some problems with conenction...
+        content.html($('<p>', {
+            text: 'Sorry, but there\'s some problem with your '
+                + 'connection or the server is down.'
+        }));
+    };
 
+    connection.onmessage = function (message) {
 
-        switch (event.type) {
-            case 'message':
-                // рендерим само сообщение
-
-                var name = document.createElement('div');
-                var icon = document.createElement('div');
-                var body = document.createElement('div');
-                var root = document.createElement('div');
-
-                name.innerText = event.from;
-                body.innerText = specials_in(event);
-
-                root.appendChild(name);
-                root.appendChild(icon);
-                root.appendChild(body);
-
-                $('messages').appendChild (root);
-
-                break;
-            case 'authorize':
-                if (event.success) {
-                    $('loginform').classList.remove('unauthorized');
-                }
-                break;
-            default:
-                console.log ('unknown event:', event);
-                break;
+        try {
+            var json = JSON.parse(message.data);
+        } catch (e) {
+            console.log('This doesn\'t look like a valid JSON: ', message.data);
+            return;
         }
-    }
 
 
-
-    function specials_in (event) {
-        var message = event.message;
-        var moment = new Date(event.time);
-
-        // получаем время в пригодном виде
-        var time = (moment.getHours()<10)? '0'+moment.getHours() : moment.getHours();
-        time = (moment.getMinutes()<10)? time+':0'+moment.getMinutes() : time+':'+moment.getMinutes();
-        time = (moment.getSeconds()<10)? time+':0'+moment.getSeconds() : time+':'+moment.getSeconds();
-        var date = (moment.getDate()<10)? '0'+moment.getDate() : moment.getDate();
-        date = (moment.getMonth()<10)? date+'.0'+moment.getMinutes()+'.'+moment.getFullYear() : date+':'+moment.getMonth()+'.'+moment.getFullYear()
+        console.log('message', message);
 
 
-        message = message.replace(/\[time\]/gim, time);
-        message = message.replace(/\[date\]/gim, date);
+        if (json.type === 'color') {
+            myColor = json.data;
+            $('#status').text(myName + ': ').css('color', myColor);
+            input.removeAttr('disabled').focus();
 
-        return message;
-    }
+        } else if (json.type === 'history') {
 
-    function specials_out(message) {
-        //message = message.replace(/\s*\/me\s/, $('#login').value+' ');
-        //TODO сделай нормально
-        return 'masha';
-    }
+            for (var i = 0; i < json.data.length; i++) {
+                addMessage(json.data[i].author, json.data[i].text,
+                    json.data[i].color, new Date(json.data[i].time));
+            }
+        } else if (json.type === 'message') {
+            input.removeAttr('disabled');
+            addMessage(json.data.author, json.data.text,
+                json.data.color, new Date(json.data.time));
+        } else {
+            console.log('Hmm..., I\'ve never seen JSON like this: ', json);
+        }
+    };
 
+    /**
+     * Send mesage when user presses Enter key
+     */
+    input.keydown(function (e) {
+        if (e.keyCode === 13) {
+            var msg = $(this).val();
+            if (!msg) {
+                return;
+            }
+            // send the message as an ordinary text
+            connection.send(msg);
+            $(this).val('');
+            // disable the input field to make the user wait until server
+            // sends back response
+            input.attr('disabled', 'disabled');
 
-    $('#password').on('keydown', function (e) {
-        console.log('password onkeydown');
-        if (e.which === 13) {
-            // отправляем серверу событие authorize
-            ws.send (JSON.stringify ({
-                type: 'authorize',
-                user: $('#login').value,
-                password: $('#password').value
-            }));
+            // we know that the first message sent from a user their name
+            if (myName === false) {
+                myName = msg;
+            }
         }
     });
 
-    $('input').on('keydown', function (e) {
-        // если человек нажал Ctrl+Enter или Shift+Enter, то просто создаем новую строку.
-        if (e.which === 13 && !e.ctrlKey && !e.shiftKey) {
-            // отправляем серверу событие message
-            ws.send (JSON.stringify ({
-                type: 'message',
-                message: specials_out($('input').innerText)
-            }));
-            $('input').innerText = ''; // чистим поле ввода
+    /**
+     * This method is optional. If the server wasn't able to respond to the
+     * in 3 seconds then show some error message to notify the user that
+     * something is wrong.
+     */
+    setInterval(function () {
+        if (connection.readyState !== 1) {
+            $('#status').text('Error');
+            input.attr('disabled', 'disabled').val('Unable to comminucate '
+                + 'with the WebSocket server.');
         }
-    });
+    }, 3000);
 
+    /**
+     * Add message to the chat window
+     */
+    function addMessage(author, message, color, dt) {
+        content.prepend('<p><span style="color:' + color + '">' + author + '</span> @ ' +
+            +(dt.getHours() < 10 ? '0' + dt.getHours() : dt.getHours()) + ':'
+            + (dt.getMinutes() < 10 ? '0' + dt.getMinutes() : dt.getMinutes())
+            + ': ' + message + '</p>');
+    }
 </script>
-
 </body>
 </html>
