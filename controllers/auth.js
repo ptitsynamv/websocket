@@ -12,7 +12,9 @@ module.exports.login = async function (req, res) {
 
             const token = createToken(candidate.email, candidate._id);
             res.status(200).json({
-                token: `Bearer ${token}`,
+                //token: `Bearer ${token}`,
+                id: candidate._id,
+                token: token,
                 email: candidate.email,
                 isAdmin: candidate.isAdmin,
                 isBan: candidate.isBan,
@@ -29,7 +31,8 @@ module.exports.login = async function (req, res) {
         const password = req.body.password;
         const user = new User({
             email: req.body.email,
-            password: bcrypt.hashSync(password, salt)
+            password: bcrypt.hashSync(password, salt),
+            color: getRandomColor()
         });
         try {
             await user.save();
@@ -37,7 +40,14 @@ module.exports.login = async function (req, res) {
             const token = createToken(newUser.email, newUser._id);
 
             res.status(200).json({
-                token: `Bearer ${token}`
+                id: newUser._id,
+                // token: `Bearer ${token}`
+                token: token,
+                email: newUser.email,
+                isAdmin: newUser.isAdmin,
+                isBan: newUser.isBan,
+                isMute: newUser.isMute,
+                color: newUser.color,
             })
         } catch (e) {
             errorHandler(res, e);
@@ -50,4 +60,13 @@ function createToken(email, id) {
         email: email,
         userId: id
     }, keys.jwt, {expiresIn: 60 * 60});
+}
+
+function getRandomColor() {
+    let letters = '0123456789ABCDEF';
+    let color = '#';
+    for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
 }

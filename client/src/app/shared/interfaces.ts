@@ -3,6 +3,7 @@ export interface IUser extends IUserInfo{
 }
 
 export interface IUserInfo {
+  id:string
   token: string,
   email: string,
   isAdmin: boolean,

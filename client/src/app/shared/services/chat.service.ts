@@ -10,13 +10,35 @@ export class ChatService {
   constructor(private socket: Socket) {
   }
 
+  socketLogin(token: string) {
+    this.socket.emit("login", token);
+  }
+
+  socketLogout(token: string) {
+    this.socket.emit("logout", token);
+  }
+
   sendMessage(msg: string) {
     this.socket.emit("message", msg);
   }
 
-  getMessage(){
+  getMessage() {
     return this.socket
       .fromEvent("message")
-      //.map(data => data.msg);
   }
+
+  getLoginUsers() {
+    return this.socket
+      .fromEvent("onlineUsers")
+  }
+
+  sendMute(msg:string) {
+    this.socket.emit("mute", msg);
+  }
+
+  getError(){
+    return this.socket
+      .fromEvent("serverError")
+  }
+
 }
