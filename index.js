@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const authRoutes = require('./routes/auth');
 const keys = require('./config/keys');
 const User = require('./models/User');
+const Message = require('./models/Message');
 
 const app = express();
 
@@ -25,32 +26,36 @@ app.use(bodyParser.json());
 app.use('/api/auth', authRoutes);
 
 
-//start our server
 const server = app.listen(process.env.PORT || 3000, () => {
     console.log(`Server started on port ${server.address().port} :)`);
 });
 
-//const server = http.createServer(app);
-//const wss = new WebSocket.Server({server});
 
-const wss = require('socket.io').listen(server);
+const wss = require('socket.io').listen(server, {
+    pingInterval: 10000,
+    pingTimeout: 5000,
+    cookie: false
+});
 
-let onlineUsers = new Map();
-let peers = [];
+let allUsers = new Map();
+let peers = new Map();
 
 wss.on('connection', (socket) => {
 
-    // socket.isAlive = true;
-    //
-    // socket.on('pong', () => {
-    //     socket.isAlive = true;
-    // });
-
     socket.on('login', function (data) {
-        peers.push(socket);
-        let decodedUser = jwt.decode(data);
+        let decodedCurrentUser = jwt.decode(data);
 
-        User.findById(decodedUser.userId, (err, currentUser) => {
+        if (!decodedCurrentUser) {
+            socket.emit('serverError', {
+                message: 'the tokens lifetime has expired',
+            });
+            console.log('the tokens lifetime has expired');
+            return;
+        }
+
+        peers.set(decodedCurrentUser.userId, socket);
+
+        User.findById(decodedCurrentUser.userId, (err, currentUser) => {
             if (err || !currentUser) {
                 socket.emit('serverError', {
                     message: 'Current user is not found',
@@ -58,37 +63,103 @@ wss.on('connection', (socket) => {
                 console.log('Current user  findOne error', 'Current user is not found');
                 return;
             }
-            updateOnlineUsers(currentUser);
+            if (currentUser.isBan) {
+                socket.emit('serverError', {
+                    message: 'Current user isBan',
+                });
+                (peers.get(decodedCurrentUser.userId)).disconnect();
+                peers.delete(decodedCurrentUser.userId);
+                console.log('Current user isBan');
+                return;
+            }
+
+            User.find({}, (err, allModels) => {
+                allModels.forEach((value) => {
+                    allUsers.set(value._id.toString(), {
+                        id: value._id,
+                        email: value.email,
+                        isAdmin: value.isAdmin,
+                        isBan: value.isBan,
+                        isMute: value.isMute,
+                    });
+                });
+                updateUsers();
+                getLastMessages();
+            });
         });
-
-
     });
 
     socket.on('logout', function (data) {
-        let decodedUser = jwt.decode(data);
-        onlineUsers.delete(decodedUser.userId);
-        updateOnlineUsers();
+        let decodedCurrentUser = jwt.decode(data);
+
+        if (!decodedCurrentUser) {
+            socket.emit('serverError', {
+                message: 'the tokens lifetime has expired',
+            });
+            console.log('the tokens lifetime has expired');
+            return;
+        }
+
+        peers.delete(decodedCurrentUser.userId);
+        updateUsers();
     });
 
-
     socket.on('disconnect', function (data) {
-        console.log('disconnect');
+        console.log('disconnect', data);
     });
 
     socket.on('message', (message) => {
-        let messageOb = JSON.parse(message);
-        let decodedUser = jwt.decode(messageOb.sender);
+        let decodedCurrentUser = jwt.decode(message.token);
 
-        broadcast('message', {
-            comment: messageOb.comment,
-            color: messageOb.color
-        }, decodedUser.userId);
+        if (!decodedCurrentUser) {
+            socket.emit('serverError', {
+                message: 'the tokens lifetime has expired',
+            });
+            console.log('the tokens lifetime has expired');
+            return;
+        }
+
+        User.findOne({_id: decodedCurrentUser.userId, isMute: false}, (err, currentUser) => {
+            if (err || !currentUser) {
+                socket.emit('serverError', {
+                    message: 'Current user is Mute or not found',
+                });
+                console.log('Current user  findOne error', 'Current user is Mute or not found');
+                return;
+            }
+
+            new Message({
+                user: decodedCurrentUser.userId,
+                comment: message.comment
+            }).save(err => {
+                if (err) {
+                    socket.emit('serverError', {
+                        message: 'Error on save Message ' + JSON.stringify(err),
+                    });
+                    console.log('Error on save Message ' + JSON.stringify(err));
+                }
+            });
+
+            broadcast('message', [{
+                userId: currentUser._id,
+                userName: currentUser.email,
+                comment: message.comment,
+                color: currentUser.color,
+                date: Date.now(),
+            }]);
+        });
     });
 
     socket.on('mute', function (message) {
-        let messageOb = JSON.parse(message);
-        let decodedCurrentUser = jwt.decode(messageOb.sender);
+        let decodedCurrentUser = jwt.decode(message.sender);
 
+        if (!decodedCurrentUser) {
+            socket.emit('serverError', {
+                message: 'the tokens lifetime has expired',
+            });
+            console.log('the tokens lifetime has expired');
+            return;
+        }
 
         User.findOne({_id: decodedCurrentUser.userId, isAdmin: true}, (err, currentUser) => {
             if (err || !currentUser) {
@@ -99,7 +170,7 @@ wss.on('connection', (socket) => {
                 return;
             }
 
-            User.findOne({_id: messageOb.userId, isAdmin: false}, function (err, userMute) {
+            User.findOne({_id: message.userForMuteId, isAdmin: false}, (err, userMute) => {
                 if (err || !userMute) {
                     socket.emit('serverError', {
                         message: 'User for mute not found ',
@@ -108,7 +179,7 @@ wss.on('connection', (socket) => {
                     return;
                 }
                 userMute.isMute = !userMute.isMute;
-                userMute.save(function (err) {
+                userMute.save((err) => {
                     if (err) {
                         socket.emit('serverError', {
                             message: JSON.stringify(err),
@@ -116,45 +187,117 @@ wss.on('connection', (socket) => {
                         console.log('userMute save error', JSON.stringify(err));
                         return;
                     }
-                    updateOnlineUsers(userMute);
+                    updateUsers(userMute);
                 });
-
             });
-
         });
-
-
     });
 
+    socket.on('ban', function (message) {
+        let decodedCurrentUser = jwt.decode(message.sender);
 
+        if (!decodedCurrentUser) {
+            socket.emit('serverError', {
+                message: 'the tokens lifetime has expired',
+            });
+            console.log('the tokens lifetime has expired');
+            return;
+        }
+
+        User.findOne({_id: decodedCurrentUser.userId, isAdmin: true}, (err, currentUser) => {
+            if (err || !currentUser) {
+                socket.emit('serverError', {
+                    message: 'Current user is not admin or not found',
+                });
+                console.log('Current user  findOne error', 'Current user is not admin or not found');
+                return;
+            }
+
+            User.findOne({_id: message.userForBanId, isAdmin: false}, function (err, userBan) {
+                if (err || !userBan) {
+                    socket.emit('serverError', {
+                        message: 'User for ban not found ',
+                    });
+                    console.log('userBan findOne error', 'User for ban not found ');
+                    return;
+                }
+                if (!userBan.isBan) {
+                    (peers.get(message.userForBanId)).disconnect();
+                    peers.delete(message.userForBanId);
+                }
+
+                userBan.isBan = !userBan.isBan;
+                userBan.save(function (err) {
+                    if (err) {
+                        socket.emit('serverError', {
+                            message: JSON.stringify(err),
+                        });
+                        console.log('userBan save error', JSON.stringify(err));
+                        return;
+                    }
+                    updateUsers(userBan);
+                });
+            });
+        });
+    });
+
+    socket.on('getPreviousMessage', (message) => {
+        let skip = message.paginationSkip;
+        let limit = message.paginationLimit;
+
+        getLastMessages(limit, skip)
+    });
 });
 
-function broadcast(nameEvent, message, userId = null) {
-    var time = new Date().getTime();
-
-    peers.forEach(function (ws) {
-        ws.emit(nameEvent, {
-            userId,
-            message,
-            time,
+function getLastMessages(limit = 2, skip = 0) {
+    let messageArray = [];
+    Message
+        .find({})
+        .populate('user')
+        .sort({date: -1})
+        .limit(limit)
+        .skip(skip)
+        .exec(function (err, allModels) {
+            if (err)
+                //TODO error notification
+                return handleError(err);
+            allModels.forEach((value) => {
+                messageArray.push({
+                    userId: value.user._id,
+                    userName: value.user.email,
+                    comment: value.comment,
+                    color: value.user.color,
+                    date: value.date,
+                });
+            });
+            broadcast('message', messageArray);
         });
+
+}
+
+function broadcast(nameEvent, message) {
+    peers.forEach((value) => {
+        value.emit(nameEvent, message);
     });
 }
 
-function updateOnlineUsers(userUpdate = null) {
+function updateUsers(userUpdate = null) {
     if (userUpdate) {
-        onlineUsers.set(userUpdate._id.toString(), {
-            userId: userUpdate._id,
+        allUsers.set(userUpdate._id.toString(), {
+            id: userUpdate._id,
             email: userUpdate.email,
             isAdmin: userUpdate.isAdmin,
             isBan: userUpdate.isBan,
             isMute: userUpdate.isMute,
         });
     }
-    console.log('onlineUsers', onlineUsers.keys());
+    allUsers.forEach((value, key, map) => {
+        allUsers.get(key).isOnline = peers.has(key);
+    });
 
-    broadcast('onlineUsers', JSON.stringify(mapToObj(onlineUsers)));
+    broadcast('allUsers', mapToObj(allUsers));
 }
+
 
 function mapToObj(map, except = null) {
     const obj = {};

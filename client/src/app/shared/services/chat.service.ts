@@ -18,7 +18,7 @@ export class ChatService {
     this.socket.emit("logout", token);
   }
 
-  sendMessage(msg: string) {
+  sendMessage(msg: {}) {
     this.socket.emit("message", msg);
   }
 
@@ -27,18 +27,28 @@ export class ChatService {
       .fromEvent("message")
   }
 
-  getLoginUsers() {
+  getUsers() {
     return this.socket
-      .fromEvent("onlineUsers")
+      .fromEvent("allUsers")
   }
 
-  sendMute(msg:string) {
+  sendMute(msg: {}) {
     this.socket.emit("mute", msg);
   }
 
-  getError(){
-    return this.socket
-      .fromEvent("serverError")
+  getError() {
+    return this.socket.fromEvent("serverError")
   }
 
+  sendBan(msg: {}) {
+    this.socket.emit("ban", msg);
+  }
+
+  getDisconnect() {
+    return this.socket.fromEvent("disconnect")
+  }
+
+  sendGetPreviousMessage(msg: {}) {
+    return this.socket.emit("getPreviousMessage", msg)
+  }
 }

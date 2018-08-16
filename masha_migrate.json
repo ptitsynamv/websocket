@@ -1,0 +1,3 @@
+{"_id":{"$oid":"5b7422a24f0829571bf72196"},"isAdmin":true,"isBan":false,"isMute":false,"color":"#807E3D","email":"admin@admin.com","password":"$2a$10$HWIdCW5YgbEqEI2kOo0BsuF01Vp345F3YBijcncanKbYKTpAgVV2.","__v":0}
+{"_id":{"$oid":"5b7422b64f0829571bf72197"},"isAdmin":false,"isBan":false,"isMute":false,"color":"#F8B9DA","email":"admin@admin.com2","password":"$2a$10$029RukzRSLNeU14kv2yWjeMArNKbtMMPk5x/lsUJRU4amIJsB.Yau","__v":0}
+{"_id":{"$oid":"5b754a3259b15a32660c4744"},"isAdmin":false,"isBan":false,"isMute":false,"email":"admin@admin.com3","password":"$2a$10$uIoeLCRt2qZ04NJAsem3ZOb3f7EJtzEvbBQd7MqUckFwPIJkqtvUW","color":"#BD3A7D","__v":0}

@@ -12,6 +12,8 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     const potentialUser = localStorage.getItem('auth-user');
+
+
     if (potentialUser !== null) {
       this.auth.setUser(JSON.parse(potentialUser))
     }

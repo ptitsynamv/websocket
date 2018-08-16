@@ -1,9 +1,9 @@
 import {Injectable} from "@angular/core";
 import {IUser, IUserInfo} from "../interfaces";
 import {HttpClient} from "@angular/common/http";
-import {Observable} from "rxjs";
+import {BehaviorSubject, Observable} from "rxjs";
 import {tap} from "rxjs/operators";
-
+import {of, from} from "rxjs";
 
 // export class User implements IUserInfo {
 //   private _email: string;
@@ -71,13 +71,23 @@ import {tap} from "rxjs/operators";
 //   // }
 // }
 
+class BehaviorSubjectUser<T> extends BehaviorSubject<T> {
+  constructor(private valueUser: T) {
+    super(valueUser);
+  }
+
+  next(value: T): void {
+    super.next(this.valueUser = Object.assign({}, this.valueUser, value));
+  }
+}
+
 
 @Injectable({
   providedIn: "root"
 })
 
 export class AuthService {
-  private _user: IUserInfo = null;
+  private _user = new BehaviorSubjectUser<IUserInfo>(null);
 
   constructor(private http: HttpClient) {
   }
@@ -95,15 +105,14 @@ export class AuthService {
   }
 
   setUser(user: IUserInfo) {
-    this._user = user;
-  }
-
-  getToken(): string {
-    return this._user.token
+    this._user.next(user)
   }
 
   isAuthtenticated(): boolean {
-    return !!this._user
+    if(this._user.value && this._user.value.isBan){
+      console.log('you are ban');
+    }
+    return !!(this._user.value && !this._user.value.isBan)
   }
 
   logout() {
@@ -111,7 +120,7 @@ export class AuthService {
     localStorage.clear();
   }
 
-  getUser(): IUserInfo {
+  getUser(): Observable<IUserInfo> {
     return this._user;
   }
 }

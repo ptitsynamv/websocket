@@ -5,14 +5,13 @@ import {Observable} from "rxjs/internal/Observable";
 import {WebSocketSubject} from 'rxjs/webSocket';
 import {FormControl, FormGroup, Validators} from "@angular/forms";
 import {Router} from "@angular/router";
-import {IUser, IUserInfo} from "../shared/interfaces";
+import {IUser, IUserInfo, IMessage, INewMessage} from "../shared/interfaces";
 import {Subscription} from "rxjs";
 
 export class Message {
   constructor(
     public sender: string,
     public comment: string,
-    public color: string,
   ) {
   }
 }
@@ -22,17 +21,17 @@ export class Message {
   templateUrl: './chat-page.component.html',
   styleUrls: ['./chat-page.component.css']
 })
-export class ChatPageComponent implements OnInit, AfterViewInit, OnDestroy {
-  form: FormGroup;
-  _user: IUserInfo = null;
-  aSub: Subscription;
-
+export class ChatPageComponent implements OnInit, OnDestroy {
+  private form: FormGroup;
+  private _user: IUserInfo = null;
+  private aSub: Subscription[] = [];
+  private paginationSkip = 0; //same on server
+  private paginationLimit = 2;
 
   onlineUsers;
-  messages = [];
-
-
-  public serverMessages = new Array<Message>();
+  messages: IMessage[] = [];
+  isExistPreviousMessage: boolean = true;
+  isCanSendMessage: boolean = true;
 
   constructor(private authService: AuthService,
               private chatService: ChatService,
@@ -41,46 +40,73 @@ export class ChatPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit() {
-    this._user = this.authService.getUser();
-    console.log('this._user', this.authService.getUser());
+    const userSub = this.authService.getUser().subscribe(data => {
+      console.log('CURRENT', data);
+      this._user = data;
+    });
+
+    const usersSub = this.chatService.getUsers().subscribe((data: IUserInfo) => {
+      this.authService.setUser(data[this._user.id]);
+      delete data[this._user.id];
+      this.onlineUsers = Object.values(data);
+    });
+
+    const messageSub = this.chatService.getMessage().subscribe((data: IMessage[]) => {
+      if (data.length < this.paginationLimit) {
+        this.isExistPreviousMessage = false;
+      }
+      data.forEach(value => this.messages.push(value));
+      this.messages.sort(compare);
+    });
+
+    const disconnectSub = this.chatService.getDisconnect().subscribe(data => {
+      console.log('getDisconnect', data);
+      this.logout();
+    });
+
+    const errorsSub = this.chatService.getError().subscribe(data => {
+      console.warn('getError', data);
+    });
+
+    this.aSub.push(userSub);
+    this.aSub.push(usersSub);
+    this.aSub.push(messageSub);
+    this.aSub.push(disconnectSub);
+    this.aSub.push(errorsSub);
 
     this.chatService.socketLogin(this._user.token);
 
     this.form = new FormGroup({
-      comment: new FormControl('masha', [Validators.required, Validators.min(1), Validators.max(200)])
+      comment: new FormControl('masha', [
+        Validators.required,
+        Validators.minLength(1),
+        Validators.maxLength(200)
+      ])
     });
-
-    this.chatService.getLoginUsers().subscribe(data => {
-      let onlineUsersObject = JSON.parse(data.message);
-      delete onlineUsersObject[this._user.id];
-      this.onlineUsers = Object.values(onlineUsersObject);
-
-      console.log('this.onlineUsers', this.onlineUsers);
-
-    });
-
-    this.chatService.getMessage().subscribe(data => {
-      this.messages.push(data);
-    });
-
-  }
-
-
-  ngAfterViewInit() {
-
   }
 
   ngOnDestroy() {
     if (this.aSub) {
-      this.aSub.unsubscribe()
+      this.aSub.forEach(s => s.unsubscribe())
     }
   }
 
   public onSubmit(): void {
-    const message = new Message(this._user.token, this.form.value.comment, this._user.color);
+    if (this._user.isMute || this._user.isBan || !this.isCanSendMessage) {
+      return;
+    }
+    this.isCanSendMessage = false;
 
-    this.serverMessages.push(message);
-    this.chatService.sendMessage(<any>JSON.stringify(message));
+    const newMessage: INewMessage = {
+      token: this._user.token,
+      comment: this.form.value.comment,
+    };
+    this.chatService.sendMessage(newMessage);
+
+    setTimeout(() => {
+      this.isCanSendMessage = true;
+    }, 15000);
+
   }
 
   logout() {
@@ -107,11 +133,50 @@ export class ChatPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  onMute(userId: string) {
-    this.chatService.sendMute(<any>JSON.stringify({userId, sender: this._user.token}))
+  onMute(userForMuteId: string) {
+    if (!this._user.isAdmin) {
+      return;
+    }
+    this.chatService.sendMute({
+      userForMuteId: userForMuteId,
+      sender: this._user.token
+    })
   }
 
+  isUserMute(): boolean {
+    return this._user.isMute;
+  }
+
+  isUserAdmin(): boolean {
+    return this._user.isAdmin;
+  }
+
+  onBan(userForBanId: string) {
+    if (!this._user.isAdmin) {
+      return;
+    }
+    this.chatService.sendBan({
+      userForBanId: userForBanId,
+      sender: this._user.token
+    })
+  }
+
+  showPreviousMessage(event: Event) {
+    event.preventDefault();
+    this.paginationSkip += this.paginationLimit;
+
+    this.chatService.sendGetPreviousMessage({
+      paginationSkip: this.paginationSkip,
+      paginationLimit: this.paginationLimit
+    });
+  }
 }
 
-
+function compare(a: IMessage, b: IMessage) {
+  if (a.date < b.date)
+    return -1;
+  if (a.date > b.date)
+    return 1;
+  return 0;
+}
 
