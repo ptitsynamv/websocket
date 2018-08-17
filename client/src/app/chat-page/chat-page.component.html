@@ -1,144 +1,116 @@
-<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<div class="container">
+  <nav class="navbar navbar-light navbar-chat">
+    <span class="badge badge-info">{{user.email}}</span>
+    <button type="button" class="btn btn-dark" (click)="logout()">Exit</button>
+  </nav>
 
-<div class="container app">
-  <div class="row app-one">
-    <div class="col-sm-4 side">
-      <div class="side-one">
-        <div class="row heading">
-          <div class="col-sm-3 col-xs-3 heading-avatar">
-            <div class="heading-avatar-icon">
-              <img
-                src="https://bootdey.com/img/Content/avatar/avatar1.png"></div>
-          </div>
-          <div class="col-sm-1 col-xs-1  heading-dot  pull-right"><i
-            class="fa fa-ellipsis-v fa-2x  pull-right" aria-hidden="true"></i></div>
-          <div class="col-sm-2 col-xs-2 heading-compose  pull-right"><i
-            class="fa fa-comments fa-2x  pull-right" aria-hidden="true"></i></div>
-        </div>
-        <div class="row searchBox">
-          <div class="col-sm-12 searchBox-inner">
-            <div class="form-group has-feedback"><input id="searchText" type="text" class="form-control"
-                                                        name="searchText" placeholder="Search"> <span
-              class="glyphicon glyphicon-search form-control-feedback"></span></div>
-          </div>
-        </div>
-        <div class="row sideBar">
 
-          <div class="row sideBar-body">
-            <div class="col-sm-3 col-xs-3 sideBar-avatar">
-              <div class="avatar-icon"><img src="https://bootdey.com/img/Content/avatar/avatar1.png">
+  <div class="row">
+
+    <div class="col-4">
+
+      <div *ngIf="users">
+
+        <ul class="list-group online-users" *ngFor="let userOb of users">
+
+          <li class="list-group-item d-flex justify-content-between align-items-center"
+              *ngIf="userOb.isOnline || user.isAdmin"
+          >
+            <div class="d-flex bd-highlight mb-3">
+              <div class="p-2 bd-highlight w-100">
+                {{userOb.email}}
+                <span
+                  class="badge badge-primary badge-pill"
+                  *ngIf="userOb.isOnline"
+                >
+                  0
+                </span>
               </div>
-            </div>
-            <div class="col-sm-9 col-xs-9 sideBar-main">
-              <div class="row">
-                <div class="col-sm-8 col-xs-8 sideBar-name"><span class="name-meta">John Doe </span>
-                </div>
-                <div class="col-sm-4 col-xs-4 pull-right sideBar-time"><span
-                  class="time-meta pull-right">18:18 </span></div>
-              </div>
-            </div>
-          </div>
+              <div class="p-2 flex-shrink-1 bd-highlight">
 
-        </div>
-      </div>
-      <div class="side-two" style="left: 0px;">
-        <div class="row newMessage-heading">
-          <div class="row newMessage-main">
-            <div class="col-sm-2 col-xs-2 newMessage-back" (click)="logout()">Выйти</div>
-            <div class="col-sm-10 col-xs-10 newMessage-title">{{getUserEmail()}}</div>
-          </div>
-        </div>
-        <div class="row compose-sideBar" *ngIf="onlineUsers">
-          <div *ngFor="let onlineUser of onlineUsers">
-              <div class="row sideBar-body" *ngIf="onlineUser.isOnline || isUserAdmin()">
-                <div class="col-sm-3 col-xs-3 sideBar-avatar">
-                  <div class="avatar-icon">
-                    <p *ngIf="onlineUser.isOnline">online</p>
-                    <img src="https://bootdey.com/img/Content/avatar/avatar1.png">
+                <div class="d-flex flex-column bd-highlight mb-2">
+
+                  <div class="p-2 bd-highlight" *ngIf="user.isAdmin">
+                    <button
+                      type="button"
+                      class="btn btn-warning btn-sm"
+                      (click)="onMute(userOb.id)"
+                    >
+                      {{userOb.isMute ? 'UnMute' : 'Mute'}}
+                    </button>
                   </div>
-                </div>
-                <div class="col-sm-9 col-xs-9 sideBar-main">
-                  <div class="row">
-                    <div class="col-sm-8 col-xs-8 sideBar-name">
-                      <span class="name-meta">{{onlineUser.email}}</span>
-
-                      <div *ngIf="isUserAdmin()">
-                        <button class="btn btn-warning" (click)="onMute(onlineUser.id)">
-                          {{onlineUser.isMute ? 'UnMute' : 'Mute'}}
-                        </button>
-                        <button class="btn btn-danger" (click)="onBan(onlineUser.id)">
-                          {{onlineUser.isBan ? 'UnBan' : 'Ban'}}
-                        </button>
-                      </div>
-
-                    </div>
+                  <div class="p-2 bd-highlight">
+                    <button
+                      type="button"
+                      class="btn btn btn-danger btn-sm"
+                      (click)="onBan(userOb.id)"
+                    >
+                      {{userOb.isBan ? 'UnBan' : 'Ban'}}
+                    </button>
                   </div>
                 </div>
 
+              </div>
             </div>
-          </div>
-        </div>
+          </li>
+
+        </ul>
+
       </div>
     </div>
-    <div class="col-sm-8 conversation">
-      <div class="row heading" [style.background-color]=getUserColor()>
-        <div class="col-sm-2 col-md-1 col-xs-3 heading-avatar">
-          <div class="heading-avatar-icon">
-            <img src="https://bootdey.com/img/Content/avatar/avatar6.png">
-          </div>
-        </div>
-        <div class="col-sm-8 col-xs-7 heading-name">
-          <a class="heading-name-meta">{{getUserEmail()}}</a>
-          <span class="heading-online">Online</span></div>
-      </div>
-      <div class="row message" id="conversation">
-        <div class="row message-previous">
-          <div class="col-sm-12 previous" *ngIf="isExistPreviousMessage">
-            <a (click)="showPreviousMessage($event)"> Show Previous Message! </a>
-          </div>
-        </div>
 
-        <div *ngIf="messages && messages.length !== 0">
-          <div *ngFor="let message of messages" class="row message-body">
-            <div class="col-sm-12 message-main-{{message.userId == getUserId() ? 'sender' : 'receiver'}}">
-              <div class="{{message.userId == getUserId() ? 'sender' : 'receiver'}}"
-                   [style.background-color]=message.color
-              >
-                <div>{{message.userName}}</div>
-                <div class="message-text"> {{message.comment}}</div>
-                <span class="message-time pull-right"> {{message.date | date:'medium'}} </span></div>
+    <div class="col-8">
+      <div class="text-center" *ngIf="isExistPreviousMessage">
+        <button type="button" (click)="showPreviousMessage($event)" class="btn btn-info">Show Previous Message!</button>
+      </div>
+
+
+      <div class="conversation" *ngIf="messages && messages.length !== 0">
+
+        <div *ngFor="let message of messages">
+          <div class="{{message.userId !== user.id ? 'sender' : 'receiver'}} rounded">
+            <div class="d-flex flex-row{{message.userId !== user.id ? '' : '-reverse '}} bd-highlight mb-3">
+              <div class="p-2 bd-highlight" [style.background-color]=message.color>
+                {{message.comment}}
+              </div>
             </div>
           </div>
         </div>
 
-      </div>
-      <form class="row reply" [formGroup]="form" (ngSubmit)="onSubmit()">
-        <div class="col-sm-9 col-xs-9 reply-main">
-          <textarea
-            class="form-control"
-            rows="1"
-            id="comment"
-            formControlName="comment"
-            [ngClass]="{'invalid': form.get('comment').invalid && form.get('comment').touched}"
-            [readonly]="isUserMute()"
+        <div>
+          <form
+            class="form-inline"
+            [formGroup]="form" (ngSubmit)="onSubmit()"
           >
+            <div class="form-group mx-sm-3 mb-2">
+               <textarea
+                 class="form-control"
+                 rows="3"
+                 id="comment"
+                 formControlName="comment"
+                 [ngClass]="{'invalid': form.get('comment').invalid && form.get('comment').touched}"
+                 [readonly]="user.isMute"
+               >
           </textarea>
-          <span
-            *ngIf="form.get('comment').invalid && form.get('comment').touched"
-            class="helper-text red-text">
+              <span
+                *ngIf="form.get('comment').invalid && form.get('comment').touched"
+                class="helper-text red-text">
           Enter correct comment
         </span>
+
+            </div>
+
+            <button
+              type="submit"
+              class="btn btn-primary mb-2"
+              [disabled]="form.disabled || form.invalid || user.isMute || !isCanSendMessage"
+            >
+              Send
+            </button>
+
+          </form>
         </div>
-        <button
-          type="submit"
-          class="col-sm-1 col-xs-1 reply-send"
-          [disabled]="form.disabled || form.invalid || isUserMute() || !isCanSendMessage"
-        >
-          <i class="fa fa-send fa-2x" aria-hidden="true"></i>
-        </button>
-      </form>
+      </div>
     </div>
   </div>
 </div>

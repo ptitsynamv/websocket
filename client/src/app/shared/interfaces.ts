@@ -25,3 +25,9 @@ export interface INewMessage {
   comment: string
 }
 
+export interface IError {
+  code: number,
+  message: string
+}
+
+

@@ -1,41 +1,21 @@
-const express = require('express');
-const http = require('http');
-const WebSocket = require('ws');
-const passport = require('passport');
-const bodyParser = require('body-parser');
-const mongoose = require('mongoose');
-const jwt = require('jsonwebtoken');
-
-const authRoutes = require('./routes/auth');
-const keys = require('./config/keys');
 const User = require('./models/User');
 const Message = require('./models/Message');
+const helpFunctions = require('./soft/helpFunctions');
 
-const app = express();
+const jwt = require('jsonwebtoken');
 
-mongoose.connect(keys.mongoUrl)
-    .then(() => console.log('mongo db connected'))
-    .catch(error => console.log(error));
-
-app.use(passport.initialize());
-require('./soft/passport')(passport);
-
-app.use(bodyParser.urlencoded({extended: true}));
-app.use(bodyParser.json());
-
-app.use('/api/auth', authRoutes);
-
+const app = require('./app');
 
 const server = app.listen(process.env.PORT || 3000, () => {
     console.log(`Server started on port ${server.address().port} :)`);
 });
-
 
 const wss = require('socket.io').listen(server, {
     pingInterval: 10000,
     pingTimeout: 5000,
     cookie: false
 });
+
 
 let allUsers = new Map();
 let peers = new Map();
@@ -46,31 +26,28 @@ wss.on('connection', (socket) => {
         let decodedCurrentUser = jwt.decode(data);
 
         if (!decodedCurrentUser) {
-            socket.emit('serverError', {
-                message: 'the tokens lifetime has expired',
-            });
-            console.log('the tokens lifetime has expired');
+            helpFunctions.errorSocket(socket, 'The tokens lifetime has expired', 401);
             return;
         }
 
         peers.set(decodedCurrentUser.userId, socket);
 
         User.findById(decodedCurrentUser.userId, (err, currentUser) => {
-            if (err || !currentUser) {
-                socket.emit('serverError', {
-                    message: 'Current user is not found',
-                });
-                console.log('Current user  findOne error', 'Current user is not found');
+            if (err) {
+                helpFunctions.errorSocket(socket, err, 500);
+                return;
+            }
+            if (!currentUser) {
+                helpFunctions.errorSocket(socket, 'Current user is not found', 404);
                 return;
             }
             if (currentUser.isBan) {
-                socket.emit('serverError', {
-                    message: 'Current user isBan',
-                });
-                (peers.get(decodedCurrentUser.userId)).disconnect();
-                peers.delete(decodedCurrentUser.userId);
-                console.log('Current user isBan');
-                return;
+                helpFunctions.errorSocket(socket, 'Current user isBan', 403);
+                if (peers.has(decodedCurrentUser.userId)) {
+                    (peers.get(decodedCurrentUser.userId)).disconnect();
+                    peers.delete(decodedCurrentUser.userId);
+                    return;
+                }
             }
 
             User.find({}, (err, allModels) => {
@@ -84,7 +61,7 @@ wss.on('connection', (socket) => {
                     });
                 });
                 updateUsers();
-                getLastMessages();
+                getLastMessages(2, 0, socket);
             });
         });
     });
@@ -93,10 +70,7 @@ wss.on('connection', (socket) => {
         let decodedCurrentUser = jwt.decode(data);
 
         if (!decodedCurrentUser) {
-            socket.emit('serverError', {
-                message: 'the tokens lifetime has expired',
-            });
-            console.log('the tokens lifetime has expired');
+            helpFunctions.errorSocket(socket, 'The tokens lifetime has expired', 401);
             return;
         }
 
@@ -112,41 +86,58 @@ wss.on('connection', (socket) => {
         let decodedCurrentUser = jwt.decode(message.token);
 
         if (!decodedCurrentUser) {
-            socket.emit('serverError', {
-                message: 'the tokens lifetime has expired',
-            });
-            console.log('the tokens lifetime has expired');
+            helpFunctions.errorSocket(socket, 'The tokens lifetime has expired', 401);
             return;
         }
 
-        User.findOne({_id: decodedCurrentUser.userId, isMute: false}, (err, currentUser) => {
-            if (err || !currentUser) {
-                socket.emit('serverError', {
-                    message: 'Current user is Mute or not found',
-                });
-                console.log('Current user  findOne error', 'Current user is Mute or not found');
+        User.findOne({_id: decodedCurrentUser.userId}, (err, currentUser) => {
+            if (err) {
+                helpFunctions.errorSocket(socket, err, 500);
+                return;
+            }
+            if (!currentUser) {
+                helpFunctions.errorSocket(socket, 'Current user is not found', 404);
+                return;
+            }
+            if (currentUser.isMute) {
+                helpFunctions.errorSocket(socket, 'Current user is mute', 403);
                 return;
             }
 
-            new Message({
-                user: decodedCurrentUser.userId,
-                comment: message.comment
-            }).save(err => {
-                if (err) {
-                    socket.emit('serverError', {
-                        message: 'Error on save Message ' + JSON.stringify(err),
-                    });
-                    console.log('Error on save Message ' + JSON.stringify(err));
-                }
-            });
 
-            broadcast('message', [{
-                userId: currentUser._id,
-                userName: currentUser.email,
-                comment: message.comment,
-                color: currentUser.color,
-                date: Date.now(),
-            }]);
+            Message
+                .findOne({user: decodedCurrentUser.userId})
+                .sort({date: -1})
+                .exec((err, lastUsersMessage) => {
+                    if (err) {
+                        helpFunctions.errorSocket(socket, err, 500);
+                        return;
+                    }
+                    if (lastUsersMessage && (Date.now() - Date.parse(lastUsersMessage.date)) / 1000 < 15) {
+                        helpFunctions.errorSocket(socket, 'Last users message was send less then 15 seconds', 400);
+                        return;
+                    }
+
+                    new Message({
+                        user: decodedCurrentUser.userId,
+                        comment: message.comment
+                    }).save(err => {
+                        if (err) {
+                            helpFunctions.errorSocket(socket, err, 500);
+                        }
+                    });
+
+                    emitEvent('message', {
+                        isNewMessage: true,
+                        message: [{
+                            userId: currentUser._id,
+                            userName: currentUser.email,
+                            comment: message.comment,
+                            color: currentUser.color,
+                            date: Date.now(),
+                        }]
+                    });
+                });
         });
     });
 
@@ -154,37 +145,42 @@ wss.on('connection', (socket) => {
         let decodedCurrentUser = jwt.decode(message.sender);
 
         if (!decodedCurrentUser) {
-            socket.emit('serverError', {
-                message: 'the tokens lifetime has expired',
-            });
-            console.log('the tokens lifetime has expired');
+            helpFunctions.errorSocket(socket, 'The tokens lifetime has expired', 401);
             return;
         }
 
-        User.findOne({_id: decodedCurrentUser.userId, isAdmin: true}, (err, currentUser) => {
-            if (err || !currentUser) {
-                socket.emit('serverError', {
-                    message: 'Current user is not admin or not found',
-                });
-                console.log('Current user  findOne error', 'Current user is not admin or not found');
+        User.findOne({_id: decodedCurrentUser.userId}, (err, currentUser) => {
+            if (err) {
+                helpFunctions.errorSocket(socket, err, 500);
+                return;
+            }
+            if (!currentUser) {
+                helpFunctions.errorSocket(socket, 'Current user is not found', 404);
+                return;
+            }
+            if (!currentUser.isAdmin) {
+                helpFunctions.errorSocket(socket, 'Current user is not admin', 403);
                 return;
             }
 
-            User.findOne({_id: message.userForMuteId, isAdmin: false}, (err, userMute) => {
-                if (err || !userMute) {
-                    socket.emit('serverError', {
-                        message: 'User for mute not found ',
-                    });
-                    console.log('userMute findOne error', 'User for mute not found ');
+            User.findOne({_id: message.userForMuteId}, (err, userMute) => {
+                if (err) {
+                    helpFunctions.errorSocket(socket, err, 500);
                     return;
                 }
+                if (!userMute) {
+                    helpFunctions.errorSocket(socket, 'User not found', 404);
+                    return;
+                }
+                if (userMute.isAdmin) {
+                    helpFunctions.errorSocket(socket, 'User for mute is admin', 400);
+                    return;
+                }
+
                 userMute.isMute = !userMute.isMute;
                 userMute.save((err) => {
                     if (err) {
-                        socket.emit('serverError', {
-                            message: JSON.stringify(err),
-                        });
-                        console.log('userMute save error', JSON.stringify(err));
+                        helpFunctions.errorSocket(socket, err, 500);
                         return;
                     }
                     updateUsers(userMute);
@@ -197,42 +193,49 @@ wss.on('connection', (socket) => {
         let decodedCurrentUser = jwt.decode(message.sender);
 
         if (!decodedCurrentUser) {
-            socket.emit('serverError', {
-                message: 'the tokens lifetime has expired',
-            });
-            console.log('the tokens lifetime has expired');
+            helpFunctions.errorSocket(socket, 'The tokens lifetime has expired', 401);
             return;
         }
 
-        User.findOne({_id: decodedCurrentUser.userId, isAdmin: true}, (err, currentUser) => {
-            if (err || !currentUser) {
-                socket.emit('serverError', {
-                    message: 'Current user is not admin or not found',
-                });
-                console.log('Current user  findOne error', 'Current user is not admin or not found');
+        User.findOne({_id: decodedCurrentUser.userId}, (err, currentUser) => {
+            if (err) {
+                helpFunctions.errorSocket(socket, err, 500);
+                return;
+            }
+            if (!currentUser) {
+                helpFunctions.errorSocket(socket, 'Current user is not found', 404);
+                return;
+            }
+            if (!currentUser.isAdmin) {
+                helpFunctions.errorSocket(socket, 'Current user is not admin', 403);
                 return;
             }
 
-            User.findOne({_id: message.userForBanId, isAdmin: false}, function (err, userBan) {
-                if (err || !userBan) {
-                    socket.emit('serverError', {
-                        message: 'User for ban not found ',
-                    });
-                    console.log('userBan findOne error', 'User for ban not found ');
+            User.findOne({_id: message.userForBanId}, function (err, userBan) {
+                if (err) {
+                    helpFunctions.errorSocket(socket, err, 500);
                     return;
                 }
+                if (!userBan) {
+                    helpFunctions.errorSocket(socket, 'User not found', 404);
+                    return;
+                }
+                if (userBan.isAdmin) {
+                    helpFunctions.errorSocket(socket, 'User for ban is admin', 400);
+                    return;
+                }
+
                 if (!userBan.isBan) {
-                    (peers.get(message.userForBanId)).disconnect();
-                    peers.delete(message.userForBanId);
+                    if (peers.has(message.userForBanId)) {
+                        (peers.get(message.userForBanId)).disconnect();
+                        peers.delete(message.userForBanId);
+                    }
                 }
 
                 userBan.isBan = !userBan.isBan;
                 userBan.save(function (err) {
                     if (err) {
-                        socket.emit('serverError', {
-                            message: JSON.stringify(err),
-                        });
-                        console.log('userBan save error', JSON.stringify(err));
+                        helpFunctions.errorSocket(socket, err, 500);
                         return;
                     }
                     updateUsers(userBan);
@@ -245,11 +248,12 @@ wss.on('connection', (socket) => {
         let skip = message.paginationSkip;
         let limit = message.paginationLimit;
 
-        getLastMessages(limit, skip)
+        getLastMessages(limit, skip, socket)
     });
-});
+})
+;
 
-function getLastMessages(limit = 2, skip = 0) {
+function getLastMessages(limit = 2, skip = 0, currentSocket = false) {
     let messageArray = [];
     Message
         .find({})
@@ -258,9 +262,9 @@ function getLastMessages(limit = 2, skip = 0) {
         .limit(limit)
         .skip(skip)
         .exec(function (err, allModels) {
-            if (err)
-                //TODO error notification
-                return handleError(err);
+            if (err) {
+                helpFunctions.errorSocket(currentSocket, err, 500);
+            }
             allModels.forEach((value) => {
                 messageArray.push({
                     userId: value.user._id,
@@ -270,15 +274,26 @@ function getLastMessages(limit = 2, skip = 0) {
                     date: value.date,
                 });
             });
-            broadcast('message', messageArray);
-        });
 
+            emitEvent(
+                'message',
+                {
+                    isNewMessage: false,
+                    message: messageArray,
+                },
+                currentSocket
+            );
+        });
 }
 
-function broadcast(nameEvent, message) {
-    peers.forEach((value) => {
-        value.emit(nameEvent, message);
-    });
+function emitEvent(nameEvent, message, currentSocket = false) {
+    if (currentSocket) {
+        currentSocket.emit(nameEvent, message);
+    } else {
+        peers.forEach((value) => {
+            value.emit(nameEvent, message);
+        });
+    }
 }
 
 function updateUsers(userUpdate = null) {
@@ -295,16 +310,5 @@ function updateUsers(userUpdate = null) {
         allUsers.get(key).isOnline = peers.has(key);
     });
 
-    broadcast('allUsers', mapToObj(allUsers));
-}
-
-
-function mapToObj(map, except = null) {
-    const obj = {};
-    for (let [k, v] of map) {
-        if (k !== except) {
-            obj[k] = v;
-        }
-    }
-    return obj
+    emitEvent('allUsers', helpFunctions.mapToObj(allUsers));
 }

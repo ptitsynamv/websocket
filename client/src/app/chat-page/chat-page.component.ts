@@ -1,20 +1,12 @@
 import {ChatService} from "../shared/services/chat.service";
 import {AuthService} from "../shared/services/auth.service";
 import {Component, ViewChild, ElementRef, OnInit, AfterViewInit, OnDestroy} from '@angular/core';
-import {Observable} from "rxjs/internal/Observable";
-import {WebSocketSubject} from 'rxjs/webSocket';
 import {FormControl, FormGroup, Validators} from "@angular/forms";
 import {Router} from "@angular/router";
-import {IUser, IUserInfo, IMessage, INewMessage} from "../shared/interfaces";
+import {IUser, IUserInfo, IMessage, INewMessage, IError} from "../shared/interfaces";
 import {Subscription} from "rxjs";
-
-export class Message {
-  constructor(
-    public sender: string,
-    public comment: string,
-  ) {
-  }
-}
+import {ErrorHandlerService} from "../shared/classes/errorHandler.service"
+import {User} from "../shared/classes/user.service";
 
 @Component({
   selector: 'app-chat-page',
@@ -23,12 +15,12 @@ export class Message {
 })
 export class ChatPageComponent implements OnInit, OnDestroy {
   private form: FormGroup;
-  private _user: IUserInfo = null;
   private aSub: Subscription[] = [];
-  private paginationSkip = 0; //same on server
+  private paginationSkip = 0;
   private paginationLimit = 2;
 
-  onlineUsers;
+  user = new User();
+  users: IUserInfo[] = [];
   messages: IMessage[] = [];
   isExistPreviousMessage: boolean = true;
   isCanSendMessage: boolean = true;
@@ -40,33 +32,53 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    const userSub = this.authService.getUser().subscribe(data => {
-      console.log('CURRENT', data);
-      this._user = data;
-    });
+    const userSub = this.authService.getUser().subscribe(
+      (data: IUserInfo) => {
+        console.log('CURRENT', data);
+        this.user.set(data);
+      },
+      error => ErrorHandlerService.errorSubscribe(error)
+    );
 
-    const usersSub = this.chatService.getUsers().subscribe((data: IUserInfo) => {
-      this.authService.setUser(data[this._user.id]);
-      delete data[this._user.id];
-      this.onlineUsers = Object.values(data);
-    });
+    const usersSub = this.chatService.getUsers().subscribe(
+      (data: IUserInfo) => {
+        this.authService.setUser(data[this.user.id]);
+        delete data[this.user.id];
+        this.users = Object.values(data);
+      },
+      error => ErrorHandlerService.errorSubscribe(error)
+    );
 
-    const messageSub = this.chatService.getMessage().subscribe((data: IMessage[]) => {
-      if (data.length < this.paginationLimit) {
-        this.isExistPreviousMessage = false;
-      }
-      data.forEach(value => this.messages.push(value));
-      this.messages.sort(compare);
-    });
+    const messageSub = this.chatService.getMessage().subscribe(
+      (data: {
+        isNewMessage: boolean,
+        message: IMessage[]
+      }) => {
 
-    const disconnectSub = this.chatService.getDisconnect().subscribe(data => {
-      console.log('getDisconnect', data);
-      this.logout();
-    });
+        console.warn('getMessage', data);
 
-    const errorsSub = this.chatService.getError().subscribe(data => {
-      console.warn('getError', data);
-    });
+        if (data.message.length < this.paginationLimit && !data.isNewMessage) {
+          this.isExistPreviousMessage = false;
+        }
+        data.message.forEach(value => this.messages.push(value));
+        this.messages.sort(compare);
+      },
+      error => ErrorHandlerService.errorSubscribe(error)
+    );
+
+    const disconnectSub = this.chatService.getDisconnect().subscribe(
+      data => {
+        this.logout();
+      },
+      error => ErrorHandlerService.errorSubscribe(error)
+    );
+
+    const errorsSub = this.chatService.getError().subscribe(
+      (data: IError) => {
+        ErrorHandlerService.errorSocket(data);
+      },
+      error => ErrorHandlerService.errorSubscribe(error)
+    );
 
     this.aSub.push(userSub);
     this.aSub.push(usersSub);
@@ -74,7 +86,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
     this.aSub.push(disconnectSub);
     this.aSub.push(errorsSub);
 
-    this.chatService.socketLogin(this._user.token);
+    this.chatService.socketLogin(this.user.token);
 
     this.form = new FormGroup({
       comment: new FormControl('masha', [
@@ -92,13 +104,13 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   }
 
   public onSubmit(): void {
-    if (this._user.isMute || this._user.isBan || !this.isCanSendMessage) {
+    if (this.user.isMute || this.user.isBan || !this.isCanSendMessage) {
       return;
     }
     this.isCanSendMessage = false;
 
     const newMessage: INewMessage = {
-      token: this._user.token,
+      token: this.user.token,
       comment: this.form.value.comment,
     };
     this.chatService.sendMessage(newMessage);
@@ -106,58 +118,33 @@ export class ChatPageComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       this.isCanSendMessage = true;
     }, 15000);
-
   }
 
   logout() {
-    this.chatService.socketLogout(this._user.token);
+    this.chatService.socketLogout(this.user.token);
     this.authService.logout();
     this.router.navigate(['/login'])
   }
 
-  getUserEmail(): string {
-    if (this._user) {
-      return this._user.email;
-    }
-  }
-
-  getUserId(): string {
-    if (this._user) {
-      return this._user.id;
-    }
-  }
-
-  getUserColor(): string {
-    if (this._user) {
-      return this._user.color;
-    }
-  }
 
   onMute(userForMuteId: string) {
-    if (!this._user.isAdmin) {
+    if (!this.user.isAdmin) {
       return;
     }
     this.chatService.sendMute({
       userForMuteId: userForMuteId,
-      sender: this._user.token
+      sender: this.user.token
     })
   }
 
-  isUserMute(): boolean {
-    return this._user.isMute;
-  }
-
-  isUserAdmin(): boolean {
-    return this._user.isAdmin;
-  }
 
   onBan(userForBanId: string) {
-    if (!this._user.isAdmin) {
+    if (!this.user.isAdmin) {
       return;
     }
     this.chatService.sendBan({
       userForBanId: userForBanId,
-      sender: this._user.token
+      sender: this.user.token
     })
   }
 
@@ -172,11 +159,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   }
 }
 
-function compare(a: IMessage, b: IMessage) {
-  if (a.date < b.date)
-    return -1;
-  if (a.date > b.date)
-    return 1;
-  return 0;
+function compare(a: IMessage, b: IMessage): number {
+  return Date.parse(a.date) <= Date.parse(b.date) ? -1 : 1;
 }
 

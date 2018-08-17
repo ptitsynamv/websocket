@@ -8,6 +8,13 @@ import { LoginPageComponent } from './login-page/login-page.component';
 import { ChatPageComponent } from './chat-page/chat-page.component';
 import {AppRoutingModule} from "./app-routing.module";
 
+
+import { BsDropdownModule } from 'ngx-bootstrap/dropdown';
+import { TooltipModule } from 'ngx-bootstrap/tooltip';
+import { ModalModule } from 'ngx-bootstrap/modal';
+
+
+
 const config: SocketIoConfig = { url: 'ws://localhost:3000', options: {} };
 
 
@@ -23,7 +30,11 @@ const config: SocketIoConfig = { url: 'ws://localhost:3000', options: {} };
     FormsModule,
     ReactiveFormsModule,
     HttpClientModule,
-    SocketIoModule.forRoot(config)
+    SocketIoModule.forRoot(config),
+
+    BsDropdownModule.forRoot(),
+    TooltipModule.forRoot(),
+    ModalModule.forRoot()
   ],
   providers: [],
   bootstrap: [AppComponent]
