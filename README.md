@@ -4,11 +4,16 @@ Installation
 1. git clone ...
 
 2. Run commands:
+
     cd websocket
+    
     npm i
+    
 
 3. Run migrate:
+
     cd migrations
+    
     migrate-mongo up
 
 You create
@@ -18,11 +23,15 @@ User:
     password = qwerty
 
 4. Run commands:
+
     cd ../client
+    
     npm i
 
 5. run server and client:
+
     cd ../
+    
     npm run dev
 
 6. Open http://localhost:4200
