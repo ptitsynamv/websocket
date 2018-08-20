@@ -133,7 +133,6 @@ module.exports = function (wss) {
         });
 
         socket.on('message', (message) => {
-            console.log('message', message);
             jwt.verify(message.sender, keys.jwt, function (err, decodedCurrentUser) {
 
                 if (!decodedCurrentUser) {

@@ -5,6 +5,7 @@ export class ErrorHandlerService {
 
   static errorSocket(error: IError) {
 
+    //TODO error notification
     console.warn('getError', error);
 
     switch (error.code) {
@@ -23,12 +24,8 @@ export class ErrorHandlerService {
     }
   }
 
-  static errorSubscribe(error){
+  static errorSubscribe(error) {
+    //TODO error notification
     console.warn('errorSubscribe', error);
   }
-
-  static modal(){
-
-  }
-
 }

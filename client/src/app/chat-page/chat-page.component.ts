@@ -35,7 +35,6 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   ngOnInit() {
     const userSub = this.authService.getUser().subscribe(
       (data: IUserInfo) => {
-        console.log('CURRENT token', data.token);
         this.user.set(data);
       },
       error => ErrorHandlerService.errorSubscribe(error)

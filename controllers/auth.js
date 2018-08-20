@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const keys = require('../config/keys');
 const errorHandler = require('../soft/errorHandler');
+const helpFunctions = require('../soft/helpFunctions');
 
 module.exports.login = async function (req, res) {
     const candidate = await User.findOne({email: req.body.email});
@@ -31,7 +32,7 @@ module.exports.login = async function (req, res) {
         const user = new User({
             email: req.body.email,
             password: bcrypt.hashSync(password, salt),
-            color: getRandomColor()
+            color: helpFunctions.getRandomColor()
         });
         try {
             await user.save();
@@ -60,15 +61,7 @@ function createToken(email, id) {
             userId: id
         },
         keys.jwt,
-        {expiresIn: 60}
+        {expiresIn: 60 * 60}
     );
 }
 
-function getRandomColor() {
-    let letters = '0123456789ABCDEF';
-    let color = '#';
-    for (let i = 0; i < 6; i++) {
-        color += letters[Math.floor(Math.random() * 16)];
-    }
-    return color;
-}

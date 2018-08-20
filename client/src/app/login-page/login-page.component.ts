@@ -3,6 +3,7 @@ import {FormControl, FormGroup, Validators} from "@angular/forms";
 import {AuthService} from "../shared/services/auth.service";
 import {Subscription} from "rxjs";
 import {ActivatedRoute, Params, Router} from "@angular/router";
+import {ErrorHandlerService} from "../shared/classes/errorHandler.service";
 
 @Component({
   selector: 'app-login-page',
@@ -27,13 +28,10 @@ export class LoginPageComponent implements OnInit, OnDestroy {
     this.route.queryParams.subscribe(
       (params: Params) => {
         if (params['registered']) {
-          //MaterialService.toast('now you can login in the system with you creads')
           console.log('now you can login in the system with you creads')
         } else if (params['accessDenied']) {
-          //MaterialService.toast('You must authorize in the system')
           console.log('You must authorize in the system')
         } else if (params['cessionFailed']) {
-          //MaterialService.toast('Please, login in the system')
           console.log('Please, login in the system')
         }
       }
@@ -51,8 +49,10 @@ export class LoginPageComponent implements OnInit, OnDestroy {
     this.aSub = this.auth.login(this.form.value).subscribe(
       () => this.router.navigate(['/chat']),
       error => {
-        console.log(error.error.message);
-        //MaterialService.toast(error.error.message);
+        ErrorHandlerService.errorSubscribe(error);
+        this.form.enable()
+      },
+      () => {
         this.form.enable()
       }
     )
