@@ -24,6 +24,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   messages: IMessage[] = [];
   isExistPreviousMessage: boolean = true;
   isCanSendMessage: boolean = true;
+  loading: number [] = [1, 1];
 
   constructor(private authService: AuthService,
               private chatService: ChatService,
@@ -34,7 +35,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   ngOnInit() {
     const userSub = this.authService.getUser().subscribe(
       (data: IUserInfo) => {
-        console.log('CURRENT', data);
+        console.log('CURRENT token', data.token);
         this.user.set(data);
       },
       error => ErrorHandlerService.errorSubscribe(error)
@@ -45,6 +46,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
         this.authService.setUser(data[this.user.id]);
         delete data[this.user.id];
         this.users = Object.values(data);
+        this.loading.pop();
       },
       error => ErrorHandlerService.errorSubscribe(error)
     );
@@ -54,14 +56,12 @@ export class ChatPageComponent implements OnInit, OnDestroy {
         isNewMessage: boolean,
         message: IMessage[]
       }) => {
-
-        console.warn('getMessage', data);
-
         if (data.message.length < this.paginationLimit && !data.isNewMessage) {
           this.isExistPreviousMessage = false;
         }
         data.message.forEach(value => this.messages.push(value));
         this.messages.sort(compare);
+        this.loading.pop();
       },
       error => ErrorHandlerService.errorSubscribe(error)
     );
@@ -75,6 +75,9 @@ export class ChatPageComponent implements OnInit, OnDestroy {
 
     const errorsSub = this.chatService.getError().subscribe(
       (data: IError) => {
+        if (data.code === 401) {
+          this.logout();
+        }
         ErrorHandlerService.errorSocket(data);
       },
       error => ErrorHandlerService.errorSubscribe(error)
@@ -103,14 +106,14 @@ export class ChatPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  public onSubmit(): void {
+  onSubmit(): void {
     if (this.user.isMute || this.user.isBan || !this.isCanSendMessage) {
       return;
     }
     this.isCanSendMessage = false;
 
     const newMessage: INewMessage = {
-      token: this.user.token,
+      sender: this.user.token,
       comment: this.form.value.comment,
     };
     this.chatService.sendMessage(newMessage);
@@ -126,7 +129,6 @@ export class ChatPageComponent implements OnInit, OnDestroy {
     this.router.navigate(['/login'])
   }
 
-
   onMute(userForMuteId: string) {
     if (!this.user.isAdmin) {
       return;
@@ -136,7 +138,6 @@ export class ChatPageComponent implements OnInit, OnDestroy {
       sender: this.user.token
     })
   }
-
 
   onBan(userForBanId: string) {
     if (!this.user.isAdmin) {

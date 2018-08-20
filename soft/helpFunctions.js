@@ -15,10 +15,6 @@ function errorSocket(socket = '', message = '', code = 500) {
         code,
         message,
     });
-
-    if (code === 401) {
-        socket.disconnect();
-    }
     console.log('ERROR', code, message);
 }
 

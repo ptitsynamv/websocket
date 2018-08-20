@@ -4,6 +4,7 @@ import {HttpClient} from "@angular/common/http";
 import {BehaviorSubject, Observable} from "rxjs";
 import {tap} from "rxjs/operators";
 import {of, from} from "rxjs";
+import {ErrorHandlerService} from "../classes/errorHandler.service"
 
 class BehaviorSubjectUser<T> extends BehaviorSubject<T> {
   constructor(private valueUser: T) {
@@ -43,8 +44,8 @@ export class AuthService {
   }
 
   isAuthtenticated(): boolean {
-    if(this._user.value && this._user.value.isBan){
-      console.log('you are ban');
+    if (this._user.value && this._user.value.isBan) {
+      ErrorHandlerService.errorSocket({code: 403, message: 'Current user isBan'})
     }
     return !!(this._user.value && !this._user.value.isBan)
   }

@@ -12,7 +12,6 @@ module.exports.login = async function (req, res) {
 
             const token = createToken(candidate.email, candidate._id);
             res.status(200).json({
-                //token: `Bearer ${token}`,
                 id: candidate._id,
                 token: token,
                 email: candidate.email,
@@ -41,7 +40,6 @@ module.exports.login = async function (req, res) {
 
             res.status(200).json({
                 id: newUser._id,
-                // token: `Bearer ${token}`
                 token: token,
                 email: newUser.email,
                 isAdmin: newUser.isAdmin,
@@ -56,10 +54,14 @@ module.exports.login = async function (req, res) {
 };
 
 function createToken(email, id) {
-    return jwt.sign({
-        email: email,
-        userId: id
-    }, keys.jwt, {expiresIn: 60 * 60});
+    return jwt.sign(
+        {
+            email: email,
+            userId: id
+        },
+        keys.jwt,
+        {expiresIn: 60}
+    );
 }
 
 function getRandomColor() {

@@ -23,13 +23,11 @@ export class ChatService {
   }
 
   getMessage() {
-    return this.socket
-      .fromEvent("message")
+    return this.socket.fromEvent("message")
   }
 
   getUsers() {
-    return this.socket
-      .fromEvent("allUsers")
+    return this.socket.fromEvent("allUsers")
   }
 
   sendMute(msg: {}) {

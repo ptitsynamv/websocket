@@ -21,7 +21,7 @@ export interface IMessage {
 }
 
 export interface INewMessage {
-  token: string,
+  sender: string,
   comment: string
 }
 

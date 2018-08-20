@@ -1,9 +1,10 @@
+<!--<div class="container" *ngIf="loading.length === 0; else loader">-->
 <div class="container">
+
   <nav class="navbar navbar-light navbar-chat">
     <span class="badge badge-info">{{user.email}}</span>
     <button type="button" class="btn btn-dark" (click)="logout()">Exit</button>
   </nav>
-
 
   <div class="row">
 
@@ -29,24 +30,25 @@
               <div class="p-2 flex-shrink-1 bd-highlight">
 
                 <div class="d-flex flex-column bd-highlight mb-2">
-
-                  <div class="p-2 bd-highlight" *ngIf="user.isAdmin">
-                    <button
-                      type="button"
-                      class="btn btn-warning btn-sm"
-                      (click)="onMute(userOb.id)"
-                    >
-                      {{userOb.isMute ? 'UnMute' : 'Mute'}}
-                    </button>
-                  </div>
-                  <div class="p-2 bd-highlight">
-                    <button
-                      type="button"
-                      class="btn btn btn-danger btn-sm"
-                      (click)="onBan(userOb.id)"
-                    >
-                      {{userOb.isBan ? 'UnBan' : 'Ban'}}
-                    </button>
+                  <div *ngIf="user.isAdmin">
+                    <div class="p-2 bd-highlight">
+                      <button
+                        type="button"
+                        class="btn btn-warning btn-sm"
+                        (click)="onMute(userOb.id)"
+                      >
+                        {{userOb.isMute ? 'UnMute' : 'Mute'}}
+                      </button>
+                    </div>
+                    <div class="p-2 bd-highlight">
+                      <button
+                        type="button"
+                        class="btn btn btn-danger btn-sm"
+                        (click)="onBan(userOb.id)"
+                      >
+                        {{userOb.isBan ? 'UnBan' : 'Ban'}}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -64,9 +66,7 @@
         <button type="button" (click)="showPreviousMessage($event)" class="btn btn-info">Show Previous Message!</button>
       </div>
 
-
       <div class="conversation" *ngIf="messages && messages.length !== 0">
-
         <div *ngFor="let message of messages">
           <div class="{{message.userId !== user.id ? 'sender' : 'receiver'}} rounded">
             <div class="d-flex flex-row{{message.userId !== user.id ? '' : '-reverse '}} bd-highlight mb-3">
@@ -76,13 +76,14 @@
             </div>
           </div>
         </div>
+      </div>
 
-        <div>
-          <form
-            class="form-inline"
-            [formGroup]="form" (ngSubmit)="onSubmit()"
-          >
-            <div class="form-group mx-sm-3 mb-2">
+      <div>
+        <form
+          class="form-inline"
+          [formGroup]="form" (ngSubmit)="onSubmit()"
+        >
+          <div class="form-group mx-sm-3 mb-2">
                <textarea
                  class="form-control"
                  rows="3"
@@ -92,25 +93,33 @@
                  [readonly]="user.isMute"
                >
           </textarea>
-              <span
-                *ngIf="form.get('comment').invalid && form.get('comment').touched"
-                class="helper-text red-text">
+            <span
+              *ngIf="form.get('comment').invalid && form.get('comment').touched"
+              class="helper-text red-text">
           Enter correct comment
         </span>
 
-            </div>
+          </div>
 
-            <button
-              type="submit"
-              class="btn btn-primary mb-2"
-              [disabled]="form.disabled || form.invalid || user.isMute || !isCanSendMessage"
-            >
-              Send
-            </button>
+          <button
+            type="submit"
+            class="btn btn-primary mb-2"
+            [disabled]="form.disabled || form.invalid || user.isMute || !isCanSendMessage"
+          >
+            Send
+          </button>
 
-          </form>
-        </div>
+        </form>
       </div>
+
     </div>
+
   </div>
+
 </div>
+
+
+<ng-template #loader>
+  <app-loader></app-loader>
+</ng-template>
+
