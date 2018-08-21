@@ -1,0 +1,5 @@
+<p *ngIf="errorModal && errorModal.isVisible">
+  <ngb-alert [dismissible]="false" [type]="errorModal.type ? errorModal.type : type" >
+    <strong>Warning!</strong> {{errorModal.error.code}} : {{errorModal.error.message}}
+  </ngb-alert>
+</p>

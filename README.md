@@ -38,3 +38,4 @@ User:
 
 
 For check "gravatar для загрузки аватара пользователя по его email" use  email: 'ptitsynamv@gmail.com'
+If "Error: listen EADDRINUSE :::3000" - sudo kill $(sudo lsof -t -i:3000)

@@ -3,10 +3,11 @@ import {AuthService} from "../shared/services/auth.service";
 import {Component, ViewChild, ElementRef, OnInit, AfterViewInit, OnDestroy} from '@angular/core';
 import {FormControl, FormGroup, Validators} from "@angular/forms";
 import {Router} from "@angular/router";
-import {IUser, IUserInfo, IMessage, INewMessage, IError} from "../shared/interfaces";
-import {Subscription} from "rxjs";
+import {IUser, IUserInfo, IMessage, INewMessage, IError, IErrorModal} from "../shared/interfaces";
+import {Subscription, Observable, from} from "rxjs";
 import {ErrorHandlerService} from "../shared/classes/errorHandler.service"
 import {User} from "../shared/classes/user.service";
+
 
 @Component({
   selector: 'app-chat-page',
@@ -25,6 +26,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
   isExistPreviousMessage: boolean = true;
   isCanSendMessage: boolean = true;
   loading: number [] = [1, 1];
+  errorModal: IErrorModal = null;
 
   constructor(private authService: AuthService,
               private chatService: ChatService,
@@ -37,7 +39,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
       (data: IUserInfo) => {
         this.user.set(data);
       },
-      error => ErrorHandlerService.errorSubscribe(error)
+      error => this.errorModal = ErrorHandlerService.errorSubscribe(error)
     );
 
     const usersSub = this.chatService.getUsers().subscribe(
@@ -47,7 +49,7 @@ export class ChatPageComponent implements OnInit, OnDestroy {
         this.users = Object.values(data);
         this.loading.pop();
       },
-      error => ErrorHandlerService.errorSubscribe(error)
+      error => this.errorModal = ErrorHandlerService.errorSubscribe(error)
     );
 
     const messageSub = this.chatService.getMessage().subscribe(
@@ -62,14 +64,14 @@ export class ChatPageComponent implements OnInit, OnDestroy {
         this.messages.sort(compare);
         this.loading.pop();
       },
-      error => ErrorHandlerService.errorSubscribe(error)
+      error => this.errorModal = ErrorHandlerService.errorSubscribe(error)
     );
 
     const disconnectSub = this.chatService.getDisconnect().subscribe(
       data => {
         this.logout();
       },
-      error => ErrorHandlerService.errorSubscribe(error)
+      error => this.errorModal = ErrorHandlerService.errorSubscribe(error)
     );
 
     const errorsSub = this.chatService.getError().subscribe(
@@ -77,16 +79,13 @@ export class ChatPageComponent implements OnInit, OnDestroy {
         if (data.code === 401) {
           this.logout();
         }
-        ErrorHandlerService.errorSocket(data);
+        this.errorModal = ErrorHandlerService.errorSocket(data);
+        console.log(this.errorModal);
       },
-      error => ErrorHandlerService.errorSubscribe(error)
+      error => this.errorModal = ErrorHandlerService.errorSubscribe(error)
     );
 
-    this.aSub.push(userSub);
-    this.aSub.push(usersSub);
-    this.aSub.push(messageSub);
-    this.aSub.push(disconnectSub);
-    this.aSub.push(errorsSub);
+    this.aSub.push(userSub, usersSub, messageSub, disconnectSub, errorsSub);
 
     this.chatService.socketLogin(this.user.token);
 

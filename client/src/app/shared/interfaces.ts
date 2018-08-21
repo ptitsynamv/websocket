@@ -31,3 +31,9 @@ export interface IError {
 }
 
 
+export interface IErrorModal {
+  isVisible: boolean,
+  error: IError,
+  type?: string
+}
+

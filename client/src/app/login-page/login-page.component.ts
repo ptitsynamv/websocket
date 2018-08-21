@@ -4,6 +4,7 @@ import {AuthService} from "../shared/services/auth.service";
 import {Subscription} from "rxjs";
 import {ActivatedRoute, Params, Router} from "@angular/router";
 import {ErrorHandlerService} from "../shared/classes/errorHandler.service";
+import {IErrorModal} from "../shared/interfaces";
 
 @Component({
   selector: 'app-login-page',
@@ -13,6 +14,8 @@ import {ErrorHandlerService} from "../shared/classes/errorHandler.service";
 export class LoginPageComponent implements OnInit, OnDestroy {
   form: FormGroup;
   aSub: Subscription;
+  errorModal: IErrorModal = null;
+
 
   constructor(private auth: AuthService,
               private router: Router,
@@ -49,7 +52,7 @@ export class LoginPageComponent implements OnInit, OnDestroy {
     this.aSub = this.auth.login(this.form.value).subscribe(
       () => this.router.navigate(['/chat']),
       error => {
-        ErrorHandlerService.errorSubscribe(error);
+       this.errorModal =  ErrorHandlerService.errorSubscribe(error);
         this.form.enable()
       },
       () => {
