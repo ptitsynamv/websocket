@@ -61,7 +61,7 @@ function createToken(email, id) {
             userId: id
         },
         keys.jwt,
-        {expiresIn: 60 * 60}
+        {expiresIn: 60*10}
     );
 }
 

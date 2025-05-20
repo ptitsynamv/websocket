@@ -4,6 +4,7 @@ const helpFunctions = require('../soft/helpFunctions');
 const jwt = require('jsonwebtoken');
 const keys = require('../config/keys');
 
+
 let allUsers = new Map();
 let peers = new Map();
 
@@ -61,10 +62,12 @@ function updateUsers(userUpdate = null) {
             isMute: userUpdate.isMute,
         });
     }
-    allUsers.forEach((value, key, map) => {
+    allUsers.forEach((value, key) => {
         allUsers.get(key).isOnline = peers.has(key);
     });
-    emitEvent('allUsers', helpFunctions.mapToObj(allUsers));
+    setTimeout(() => {
+        emitEvent('allUsers', helpFunctions.mapToObj(allUsers));
+    }, 10000)
 }
 
 
@@ -72,13 +75,22 @@ module.exports = function (wss) {
     wss.on('connection', (socket) => {
 
         socket.on('login', (data) => {
-            jwt.verify(data, keys.jwt, function (err, decodedCurrentUser) {
+            if (!data) {
+                helpFunctions.errorSocket(socket, `Login data is uncorrected : ${data}`, 400);
+                return;
+            }
 
+            jwt.verify(data, keys.jwt, function (err, decodedCurrentUser) {
                 if (!decodedCurrentUser) {
-                    helpFunctions.errorSocket(socket, 'The tokens lifetime has expired', 401);
+                    helpFunctions.errorSocket(socket, '[login] The tokens lifetime has expired', 401);
+                    return;
+                }
+                if (!decodedCurrentUser.userId) {
+                    helpFunctions.errorSocket(socket, '[login] Login decodedCurrentUser is uncorrected', 400);
                     return;
                 }
 
+                //TODO the same user is authorized at the same time from different locations
                 peers.set(decodedCurrentUser.userId, socket);
 
                 User.findById(decodedCurrentUser.userId, (err, currentUser) => {
@@ -87,11 +99,11 @@ module.exports = function (wss) {
                         return;
                     }
                     if (!currentUser) {
-                        helpFunctions.errorSocket(socket, 'Current user is not found', 404);
+                        helpFunctions.errorSocket(socket, `[login] Current user for login with id: ${decodedCurrentUser.userId} is not found`, 404);
                         return;
                     }
                     if (currentUser.isBan) {
-                        helpFunctions.errorSocket(socket, 'Current user isBan', 403);
+                        helpFunctions.errorSocket(socket, `[login] Current user with id: ${decodedCurrentUser.userId} isBan`, 403);
                         if (peers.has(decodedCurrentUser.userId)) {
                             (peers.get(decodedCurrentUser.userId)).disconnect();
                             peers.delete(decodedCurrentUser.userId);
@@ -117,15 +129,21 @@ module.exports = function (wss) {
         });
 
         socket.on('logout', (data) => {
+            if (!data) {
+                helpFunctions.errorSocket(socket, `[logout] Logout data is uncorrected : ${data}`, 400);
+                return;
+            }
             let decodedCurrentUser = jwt.decode(data);
 
-            if (!decodedCurrentUser) {
-                helpFunctions.errorSocket(socket, 'The tokens lifetime has expired', 401);
+            if (!decodedCurrentUser || !decodedCurrentUser.userId) {
+                helpFunctions.errorSocket(socket, `[logout] Logout data is uncorrected : ${data}`, 400);
                 return;
             }
 
-            peers.delete(decodedCurrentUser.userId);
-            updateUsers();
+            if (peers.has(decodedCurrentUser.userId)) {
+                peers.delete(decodedCurrentUser.userId);
+                updateUsers();
+            }
         });
 
         socket.on('disconnect', (data) => {
@@ -133,10 +151,14 @@ module.exports = function (wss) {
         });
 
         socket.on('message', (message) => {
-            jwt.verify(message.sender, keys.jwt, function (err, decodedCurrentUser) {
+            if (!message || !message.sender) {
+                helpFunctions.errorSocket(socket, `[message] message data is uncorrected : ${message}`, 400);
+                return;
+            }
 
+            jwt.verify(message.sender, keys.jwt, function (err, decodedCurrentUser) {
                 if (!decodedCurrentUser) {
-                    helpFunctions.errorSocket(socket, 'The tokens lifetime has expired', 401);
+                    helpFunctions.errorSocket(socket, '[message] The tokens lifetime has expired', 401);
                     return;
                 }
 
@@ -146,11 +168,11 @@ module.exports = function (wss) {
                         return;
                     }
                     if (!currentUser) {
-                        helpFunctions.errorSocket(socket, 'Current user is not found', 404);
+                        helpFunctions.errorSocket(socket, `[message] Current user with id: ${decodedCurrentUser.userId} is not found`, 404);
                         return;
                     }
                     if (currentUser.isMute) {
-                        helpFunctions.errorSocket(socket, 'Current user is mute', 403);
+                        helpFunctions.errorSocket(socket, `[message] Current user with id: ${decodedCurrentUser.userId} is mute`, 403);
                         return;
                     }
 
@@ -164,7 +186,7 @@ module.exports = function (wss) {
                                 return;
                             }
                             if (lastUsersMessage && (Date.now() - Date.parse(lastUsersMessage.date)) / 1000 < 15) {
-                                helpFunctions.errorSocket(socket, 'Last users message was send less then 15 seconds', 400);
+                                helpFunctions.errorSocket(socket, `[message] Last users with id: ${decodedCurrentUser.userId} message was send less then 15 seconds`, 400);
                                 return;
                             }
 
@@ -193,10 +215,13 @@ module.exports = function (wss) {
         });
 
         socket.on('mute', (message) => {
+            if (!message || !message.sender) {
+                helpFunctions.errorSocket(socket, `[mute] mute data is uncorrected : ${message}`, 400);
+                return;
+            }
             jwt.verify(message.sender, keys.jwt, function (err, decodedCurrentUser) {
-
                 if (!decodedCurrentUser) {
-                    helpFunctions.errorSocket(socket, 'The tokens lifetime has expired', 401);
+                    helpFunctions.errorSocket(socket, '[mute] The tokens lifetime has expired', 401);
                     return;
                 }
                 User.findOne({_id: decodedCurrentUser.userId}, (err, currentUser) => {
@@ -205,11 +230,11 @@ module.exports = function (wss) {
                         return;
                     }
                     if (!currentUser) {
-                        helpFunctions.errorSocket(socket, 'Current user is not found', 404);
+                        helpFunctions.errorSocket(socket, `[mute] Current user with id: ${decodedCurrentUser.userId} is not found`, 404);
                         return;
                     }
                     if (!currentUser.isAdmin) {
-                        helpFunctions.errorSocket(socket, 'Current user is not admin', 403);
+                        helpFunctions.errorSocket(socket, `[mute] Current user with id: ${decodedCurrentUser.userId} is not admin`, 403);
                         return;
                     }
 
@@ -219,11 +244,11 @@ module.exports = function (wss) {
                             return;
                         }
                         if (!userMute) {
-                            helpFunctions.errorSocket(socket, 'User not found', 404);
+                            helpFunctions.errorSocket(socket, `[mute] User for mute with id: ${decodedCurrentUser.userId} not found`, 404);
                             return;
                         }
                         if (userMute.isAdmin) {
-                            helpFunctions.errorSocket(socket, 'User for mute is admin', 400);
+                            helpFunctions.errorSocket(socket, `[mute] User for mute with id: ${decodedCurrentUser.userId} is admin`, 400);
                             return;
                         }
 
@@ -241,10 +266,13 @@ module.exports = function (wss) {
         });
 
         socket.on('ban', (message) => {
+            if (!message || !message.sender) {
+                helpFunctions.errorSocket(socket, `[Ban] Ban data is uncorrected : ${message}`, 400);
+                return;
+            }
             jwt.verify(message.sender, keys.jwt, function (err, decodedCurrentUser) {
-
                 if (!decodedCurrentUser) {
-                    helpFunctions.errorSocket(socket, 'The tokens lifetime has expired', 401);
+                    helpFunctions.errorSocket(socket, '[Ban] The tokens lifetime has expired', 401);
                     return;
                 }
 
@@ -254,11 +282,11 @@ module.exports = function (wss) {
                         return;
                     }
                     if (!currentUser) {
-                        helpFunctions.errorSocket(socket, 'Current user is not found', 404);
+                        helpFunctions.errorSocket(socket, `[Ban] Current user with id: ${decodedCurrentUser.userId} is not found`, 404);
                         return;
                     }
                     if (!currentUser.isAdmin) {
-                        helpFunctions.errorSocket(socket, 'Current user is not admin', 403);
+                        helpFunctions.errorSocket(socket, `[Ban] Current user with id: ${decodedCurrentUser.userId} is not admin`, 403);
                         return;
                     }
 
@@ -268,11 +296,11 @@ module.exports = function (wss) {
                             return;
                         }
                         if (!userBan) {
-                            helpFunctions.errorSocket(socket, 'User not found', 404);
+                            helpFunctions.errorSocket(socket, `[Ban] User for ban with id: ${decodedCurrentUser.userId} is not found`, 404);
                             return;
                         }
                         if (userBan.isAdmin) {
-                            helpFunctions.errorSocket(socket, 'User for ban is admin', 400);
+                            helpFunctions.errorSocket(socket, `[Ban] User for ban with id: ${decodedCurrentUser.userId} is admin`, 400);
                             return;
                         }
 
@@ -297,6 +325,11 @@ module.exports = function (wss) {
         });
 
         socket.on('getPreviousMessage', (message) => {
+            if (!message || !message.paginationSkip || !message.paginationLimit) {
+                helpFunctions.errorSocket(socket, `[getPreviousMessage] data is uncorrected : ${message}`, 400);
+                return;
+            }
+
             let skip = message.paginationSkip;
             let limit = message.paginationLimit;
 

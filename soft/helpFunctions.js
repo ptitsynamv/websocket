@@ -1,12 +1,9 @@
-function mapToObj(map, except = null) {
-    const obj = {};
-    for (let [k, v] of map) {
-        if (k !== except) {
-            obj[k] = v;
-        }
-    }
-    return obj;
-}
+const log4js = require('log4js');
+log4js.configure({
+    appenders: { socket: { type: 'file', filename: 'debug/socket.log' } },
+    categories: { default: { appenders: ['socket'], level: 'error' } }
+});
+const logger = log4js.getLogger('socket');
 
 function errorSocket(socket = '', message = '', code = 500) {
     let nameOfError = 'serverError';
@@ -16,8 +13,19 @@ function errorSocket(socket = '', message = '', code = 500) {
         message,
     });
 
-    //TODO logger for errors
-    console.log('ERROR', code, message);
+    logger.error(`code: ${code}, message: ${message}`);
+}
+
+
+
+function mapToObj(map, except = null) {
+    const obj = {};
+    for (let [k, v] of map) {
+        if (k !== except) {
+            obj[k] = v;
+        }
+    }
+    return obj;
 }
 
 colorsNames = [
@@ -58,5 +66,6 @@ function getRandomColor() {
 module.exports = {
     mapToObj,
     errorSocket,
-    getRandomColor
+    getRandomColor,
+    logger
 };

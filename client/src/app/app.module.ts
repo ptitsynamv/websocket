@@ -9,6 +9,8 @@ import {ChatPageComponent} from './chat-page/chat-page.component';
 import {AppRoutingModule} from "./app-routing.module";
 import {LoaderComponent} from "./shared/components/loader/loader.component";
 import {GravatarDirective} from "./shared/directive/gravatar.directive";
+import { AlertComponent } from './shared/components/alert/alert.component';
+import {NgbPaginationModule, NgbAlertModule} from '@ng-bootstrap/ng-bootstrap';
 
 const config: SocketIoConfig = {url: 'ws://localhost:3000', options: {}};
 
@@ -19,7 +21,8 @@ const config: SocketIoConfig = {url: 'ws://localhost:3000', options: {}};
     LoginPageComponent,
     ChatPageComponent,
     LoaderComponent,
-    GravatarDirective
+    GravatarDirective,
+    AlertComponent
   ],
   imports: [
     BrowserModule,
@@ -28,6 +31,7 @@ const config: SocketIoConfig = {url: 'ws://localhost:3000', options: {}};
     ReactiveFormsModule,
     HttpClientModule,
     SocketIoModule.forRoot(config),
+    NgbAlertModule,
   ],
   providers: [],
   bootstrap: [AppComponent]

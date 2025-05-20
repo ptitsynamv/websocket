@@ -1,9 +1,3 @@
-const User = require('./models/User');
-const Message = require('./models/Message');
-const helpFunctions = require('./soft/helpFunctions');
-
-const jwt = require('jsonwebtoken');
-
 const app = require('./app');
 
 const server = app.listen(process.env.PORT || 3000, () => {
